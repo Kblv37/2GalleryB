@@ -52,7 +52,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    // Подключение к MEGA
     const storage = new Storage({
       email: process.env.MEGA_EMAIL,
       password: process.env.MEGA_PASSWORD
@@ -66,7 +65,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const file = req.file;
     if (!file) return res.status(400).json({ error: "Нет файла" });
 
-    const megaFile = storage.upload(file.originalname, file.buffer.length);
+    // ✅ Фикс: указываем размер и allowUploadBuffering
+    const megaFile = storage.upload(file.originalname, file.size, { allowUploadBuffering: true });
     megaFile.end(file.buffer);
 
     megaFile.on("complete", file => {
@@ -75,6 +75,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         res.json({ url: link });
       });
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });
