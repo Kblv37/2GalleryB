@@ -12,13 +12,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
-    const sizeFromClient = parseInt(req.body.size, 10);
-
     if (!file) {
       return res.status(400).json({ error: "Файл не передан" });
     }
 
-    const size = sizeFromClient || file.size || file.buffer.length;
+    // ✅ Берём размер из буфера
+    const size = file.buffer.length;
 
     console.log("📥 Получен файл:", file.originalname, "размер:", size);
 
