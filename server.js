@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import multer from "multer";
-import { Storage } from "mega";
+import { Storage } from "mega.js";
 
 const app = express();
 app.use(cors());
@@ -16,6 +16,8 @@ const mega = new Storage({
   email: process.env.MEGA_EMAIL,
   password: process.env.MEGA_PASSWORD
 });
+
+await mega.ready;
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
