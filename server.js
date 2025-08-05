@@ -2,13 +2,13 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import multer from "multer";
-import { Storage } from "mega.js";
+import { Storage } from "megajs";
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Загружаем файлы через multer
+// Multer для приёма файлов
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Подключение к MEGA
@@ -17,19 +17,20 @@ const mega = new Storage({
   password: process.env.MEGA_PASSWORD
 });
 
-await mega.ready;
+await mega.ready; // ждём подключения
 
+// Маршрут для загрузки
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const fileBuffer = req.file.buffer;
     const fileName = req.file.originalname;
 
-    const file = await mega.upload(fileName, fileBuffer).complete;
-    const link = await file.link();
+    const uploadedFile = await mega.upload(fileName, fileBuffer).complete;
+    const link = await uploadedFile.link();
 
     res.json({ url: link });
   } catch (error) {
-    console.error(error);
+    console.error("Upload error:", error);
     res.status(500).json({ error: "Ошибка загрузки файла" });
   }
 });
