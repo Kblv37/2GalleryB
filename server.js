@@ -69,12 +69,17 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const megaFile = storage.upload(file.originalname, file.size, { allowUploadBuffering: true });
     megaFile.end(file.buffer);
 
-    megaFile.on("complete", file => {
-      file.link((err, link) => {
-        if (err) return res.status(500).json({ error: err.message });
+    megaFile.on("complete", (uploadedFile) => {
+      uploadedFile.link((err, link) => {
+        if (err) {
+          console.error("Ошибка создания ссылки:", err);
+          return res.status(500).json({ error: err.message });
+        }
+        console.log("Файл загружен, ссылка:", link);
         res.json({ url: link });
       });
     });
+
 
   } catch (err) {
     console.error(err);
