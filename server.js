@@ -1,117 +1,78 @@
+// server.js
 import express from "express";
-import cors from "cors";
 import multer from "multer";
-import { Storage } from "megajs";
+import cors from "cors";
+import { v2 as cloudinary } from "cloudinary";
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Настройка Cloudinary через переменные окружения
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Multer для работы с файлами
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Тестовый маршрут
+app.get("/", (req, res) => {
+  res.send("✅ Server работает с Cloudinary");
+});
 
-// Подключение к MEGA
-function createStorage() {
-  return new Promise((resolve, reject) => {
-    const storage = new Storage({
-      email: process.env.MEGA_EMAIL,
-      password: process.env.MEGA_PASSWORD,
-    });
-
-    storage.on("ready", () => {
-      console.log("✅ MEGA подключение установлено");
-      resolve(storage);
-    });
-
-    storage.on("error", (err) => {
-      console.error("❌ Ошибка MEGA:", err);
-      reject(err);
-    });
-  });
-}
-
-// Загрузка файла
+// Загрузка фото
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: "Файл не передан" });
+    if (!req.file) {
+      return res.status(400).json({ error: "Файл не найден" });
     }
 
-    console.log(`📥 Загружается: ${file.originalname}, размер: ${file.size}`);
-
-    const storage = await createStorage();
-
-    // ищем или создаём папку Photos-port
-    let folder = storage.root.children.find(
-      (c) => c.name === "Photos-port" && c.directory
-    );
-    if (!folder) {
-      folder = storage.root.mkdir("Photos-port");
-    }
-
-    // загружаем
-    const uploader = folder.upload(file.originalname, {
-      allowUploadBuffering: true,
-      size: file.buffer.length,
-    });
-    uploader.end(file.buffer);
-
-    // ждём завершения загрузки
-    uploader.on("complete", async () => {
-      console.log(`✅ Файл ${file.originalname} загружен`);
-
-      // ищем файл в папке
-      const uploadedFile = folder.children.find((f) => f.name === file.originalname);
-      if (!uploadedFile) {
-        return res.status(500).json({ error: "Файл загружен, но не найден" });
-      }
-
-      // получаем ссылку
-      uploadedFile.link((err, link) => {
-        if (err || !link) {
-          console.error("❌ Ошибка получения ссылки:", err);
-          return res.status(500).json({ error: "Не удалось получить ссылку" });
+    // Загрузка в Cloudinary
+    const result = await cloudinary.uploader.upload_stream(
+      {
+        folder: "Photos-port", // папка в Cloudinary
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Ошибка Cloudinary:", error);
+          return res.status(500).json({ error: error.message });
         }
-        console.log("🔗 Ссылка:", link);
-        res.json({ url: link });
-      });
-    });
+        res.json({
+          url: result.secure_url,
+          public_id: result.public_id,
+        });
+      }
+    );
+
+    // pipe данных в upload_stream
+    const stream = result;
+    stream.end(req.file.buffer);
+
   } catch (err) {
-    console.error("🔥 Ошибка загрузки:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Ошибка загрузки:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
-// Получение всех файлов
-app.get("/files", async (req, res) => {
+// Удаление фото по public_id
+app.delete("/delete/:public_id", async (req, res) => {
   try {
-    const storage = await createStorage();
-
-    const folder = storage.root.children.find(
-      (c) => c.name === "Photos-port" && c.directory
-    );
-    if (!folder) return res.json([]);
-
-    const files = await Promise.all(
-      folder.children.map(
-        (f) =>
-          new Promise((resolve) => {
-            f.link((err, link) => {
-              if (err || !link) resolve(null);
-              else resolve({ name: f.name, url: link });
-            });
-          })
-      )
-    );
-
-    res.json(files.filter(Boolean));
+    const { public_id } = req.params;
+    const result = await cloudinary.uploader.destroy(public_id);
+    res.json({ result });
   } catch (err) {
-    console.error("🔥 Ошибка списка:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Ошибка удаления:", err);
+    res.status(500).json({ error: "Ошибка при удалении" });
   }
 });
 
-const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Сервер работает на порту ${PORT}`);
+  console.log(`🚀 Server запущен на порту ${PORT}`);
 });
