@@ -7,20 +7,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Хранение файлов в памяти (не во временной папке)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 📌 Маршрут загрузки фото
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
+    const sizeFromClient = parseInt(req.body.size, 10);
+
     if (!file) {
       return res.status(400).json({ error: "Файл не передан" });
     }
 
-    console.log("📥 Получен файл:", file.originalname, "размер:", file.size);
+    const size = sizeFromClient || file.size || file.buffer.length;
 
-    // Подключаемся к MEGA
+    console.log("📥 Получен файл:", file.originalname, "размер:", size);
+
     const storage = new Storage({
       email: process.env.MEGA_EMAIL,
       password: process.env.MEGA_PASSWORD,
@@ -31,9 +32,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       storage.on("error", reject);
     });
 
-    // ✅ Передаём размер и включаем буферизацию
     const megaFile = storage.upload(file.originalname, {
-      size: file.size,
+      size,
       allowUploadBuffering: true,
     });
 
@@ -42,23 +42,21 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     megaFile.on("complete", (uploadedFile) => {
       uploadedFile.link((err, link) => {
         if (err) {
-          console.error("❌ Ошибка создания ссылки:", err);
+          console.error("❌ Ошибка ссылки:", err);
           return res.status(500).json({ error: err.message });
         }
-        console.log("✅ Файл загружен! Ссылка:", link);
+        console.log("✅ Загружено. Ссылка:", link);
         res.json({ url: link });
       });
     });
 
   } catch (err) {
-    console.error("🔥 Ошибка сервера:", err);
+    console.error("🔥 Ошибка:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 📌 Запуск сервера
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
-ы
