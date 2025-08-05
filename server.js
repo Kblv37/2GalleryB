@@ -16,14 +16,13 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Файл не передан" });
     }
 
-    // ✅ Берём размер из буфера
     const size = file.buffer.length;
-
     console.log("📥 Получен файл:", file.originalname, "размер:", size);
 
     const storage = new Storage({
       email: process.env.MEGA_EMAIL,
       password: process.env.MEGA_PASSWORD,
+      allowUploadBuffering: true // <-- 📌 ВКЛЮЧИЛ ЗДЕСЬ
     });
 
     await new Promise((resolve, reject) => {
@@ -31,11 +30,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       storage.on("error", reject);
     });
 
-    const megaFile = storage.upload(file.originalname, {
-      size,
-      allowUploadBuffering: true,
-    });
-
+    const megaFile = storage.upload(file.originalname, { size });
     megaFile.end(file.buffer);
 
     megaFile.on("complete", (uploadedFile) => {
